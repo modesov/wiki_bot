@@ -1,3 +1,4 @@
+from emoji import emojize
 from aiogram import types, Router, F
 from aiogram.filters import CommandStart, StateFilter, or_f, Command
 from aiogram.fsm.context import FSMContext
@@ -6,7 +7,7 @@ from aiogram.types import ReplyKeyboardRemove
 from aiogram.utils.formatting import Bold
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.texts import greeting_text, go_search_text, not_find_text
+from config.texts import greeting_text, go_search_text, not_find_text, no_such_find, help_command_description_text
 from services.wiki import Wiki
 from database.orm_query import orm_add_user
 
@@ -26,7 +27,7 @@ async def start_cmd(message: types.Message, session: AsyncSession):
 
 @user_private_router.message(Command('help'))
 async def start_cmd(message: types.Message):
-    await message.answer('Здесь надо рассказать как пользоваться Вики Ботом')
+    await message.answer(help_command_description_text)
 
 
 @user_private_router.edited_message(F.text)
@@ -37,11 +38,14 @@ async def start_search(message: types.Message, state: FSMContext):
     msg = await message.answer(go_search_text, reply_markup=ReplyKeyboardRemove())
     wiki = Wiki(text_search=message.text)
     await wiki.init()
-    text = await wiki.getInfo()
     found_option = await wiki.getFoundOptions()
+    text = await wiki.getInfo()
     if text == not_find_text and found_option:
         await msg.delete()
         await message.answer(text=text, reply_markup=wiki.getButtons())
+    elif text == no_such_find:
+        await msg.delete()
+        await message.answer(text=text)
     else:
         await msg.delete()
         await state.update_data(wiki=wiki)
@@ -60,7 +64,8 @@ async def get_info_by_section(message: types.CallbackQuery, state: FSMContext):
         parent = section['title'] if section else ''
         text = section['text'] or section['title'] if section else await wiki.getInfo()
         if section and len(text) > chart_limit:
-            title = f'{Bold(section["title"]).as_html()}\n\n'
+            title = f'Категория «{section["title"]}» по запросу «{wiki.getTextSearch()}»' if section[
+                                                                                                 "title"] != '...продолжение сводки' else f"Сводка по запросу «{wiki.getTextSearch()}» (продолжение)"
             words = text.split(' ')
             chunks = []
             chunk = ''
@@ -69,11 +74,16 @@ async def get_info_by_section(message: types.CallbackQuery, state: FSMContext):
                 if len(chunk) + len(substr) < chart_limit:
                     chunk += f' {substr}'
                 else:
-                    chunks.append(title + chunk if i > 0 else chunk)
+                    tail = f' стр. {i + 1}' if i > 0 else ''
+                    title += tail
+
+                    chunks.append(f'{Bold(title).as_html()}\n\n {chunk}' if i > 0 else chunk)
                     chunk = substr
                     i += 1
             if len(chunk) < chart_limit:
-                chunks.append(title + chunk)
+                tail = f'стр. {i + 1}\n' if i > 0 else ''
+                title = tail + title
+                chunks.append(f'{Bold(title).as_html()}\n\n {chunk}')
 
             read = {
                 'chunks': chunks,
@@ -93,14 +103,15 @@ async def get_info_by_section(message: types.CallbackQuery, state: FSMContext):
             await message.message.edit_text(text=text, reply_markup=wiki.getButtons(parent=parent))
     except Exception as error:
         print(error)
-        await message.message.edit_text(text=not_find_text)
+        await message.message.edit_text(text=no_such_find)
 
 
 @user_private_router.callback_query(F.data.startswith('btn_section:'))
 async def get_info_by_section_error(message: types.CallbackQuery, state: FSMContext):
     if not StateFilter(None):
         await state.clear()
-    await message.message.edit_text(text='Что то пошло не так. Попробуйте ввести запрос заново.')
+    await message.message.edit_text(
+        text=f'{emojize(":face_with_monocle:")} Что то пошло не так. Попробуйте ввести запрос заново.')
 
 
 @user_private_router.callback_query(ReadAnswer.read, or_f(F.data == 'pagination_next', F.data == 'pagination_previous'))
@@ -123,7 +134,7 @@ async def pagination(message: types.CallbackQuery, state: FSMContext):
 
 
 @user_private_router.callback_query(ReadAnswer.read, F.data == 'pagination_back')
-async def pagination(message: types.CallbackQuery, state: FSMContext):
+async def pagination_back(message: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     wiki: Wiki | None = data.get('wiki', None)
     read: dict | None = data.get('read', None)

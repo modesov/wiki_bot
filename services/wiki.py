@@ -1,22 +1,23 @@
+from emoji import emojize
 import uuid
-
 import wikipediaapi
 import hashlib
 from aiogram.client.session import aiohttp
 
-from config.texts import not_find_text
+from config.texts import not_find_text, no_such_find
 from aiogram.types import InlineKeyboardButton, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from aiogram.utils.formatting import Bold
+from aiogram.utils.formatting import Bold, Url
 
 
 class Wiki:
     url_api = 'https://ru.wikipedia.org/w/api.php'
 
     def __init__(self, *, text_search: str):
-        self.__found_options = None
+        self.__found_options = []
         self.__text_search = text_search
         self.__info = None
+        self.__full_url = None
         self.__sections = []
 
     async def init(self):
@@ -36,18 +37,26 @@ class Wiki:
                     page = wiki.page(self.__text_search)
 
             if page.exists():
+                self.__full_url = page.fullurl
                 full_text = page.summary.split('\n')
+                full_text = list(filter(lambda chunk: chunk, full_text))
+
                 count_chunk = len(full_text)
-                info = f'{Bold(f"Резюме по запросу «{self.__text_search}»").as_html()} \n\n {full_text[0]}{"..." if count_chunk > 1 else ""}'
-                continuation = full_text[1:]
-                continuation = list(filter(lambda chunk: chunk, continuation))
+                summary_text = f'{full_text[0]} \n {full_text[1]}' if count_chunk > 1 and len(full_text[0]) < 10 else full_text[0]
+                info = f'{Bold(f"Сводка по запросу «{self.__text_search}»").as_html()}\n<a href="{self.__full_url}">Ссылка на wikipedia</a>  \n\n {summary_text}{"..." if count_chunk > 1 else ""}'
+
+                if count_chunk > 1 and len(full_text[0]) < 10:
+                    continuation = full_text[2:]
+                else:
+                    continuation = full_text[1:]
+
                 continuation_text = '\n'.join(continuation)
                 self.__info = info
                 if count_chunk > 1:
                     self.__sections.append({
-                        'title': '...продолжение резюме',
+                        'title': '...продолжение сводки',
                         'slug': 'summary',
-                        'text': f'{Bold("Резюме (продолжение)").as_html()} \n\n {continuation_text}',
+                        'text': f'{Bold(f"Сводка по запросу «{self.__text_search}» (продолжение)").as_html()} \n\n {continuation_text}',
                         'parent': ''
                     })
                 self.setSections(sections=page.sections)
@@ -55,10 +64,10 @@ class Wiki:
             print(inst, type(inst))
 
     async def getInfo(self):
-        return self.__info or not_find_text
+        return self.__info or (no_such_find if not len(self.__found_options) else not_find_text)
 
     async def getFoundOptions(self):
-        if self.__found_options is None:
+        if not len(self.__found_options):
             result = await self.openSearch(text_search=self.__text_search)
             self.__found_options = result[1]
 
@@ -70,13 +79,16 @@ class Wiki:
             self.__sections.append({
                 'title': section.title,
                 'slug': hashlib.md5(uid.encode('utf-8')).hexdigest(),
-                'text': f'{Bold(section.title).as_html()} \n\n {section.text}',
+                'text': f'{Bold(f"Категория «{section.title}» по запросу «{self.__text_search}»").as_html()} \n\n {section.text}',
                 'parent': parent
             })
             self.setSections(sections=section.sections, parent=section.title)
 
     def getSections(self):
         return self.__sections
+
+    def getTextSearch(self):
+        return self.__text_search
 
     def getButtons(self, *, parent: str = ''):
         keyword = InlineKeyboardBuilder()
@@ -105,7 +117,7 @@ class Wiki:
                 slug = previous_section['slug'] if previous_section else 'main_menu_slug'
 
                 keyword.add(
-                    InlineKeyboardButton(text='Назад', callback_data=f'btn_section:{slug}'))
+                    InlineKeyboardButton(text=f"{emojize(':left_arrow:')} Назад", callback_data=f'btn_section:{slug}'))
 
         return keyword.adjust(1).as_markup()
 
@@ -113,10 +125,13 @@ class Wiki:
     def getPagination(*, count: int, current_page: int):
         callback_data = 'pagination_previous' if current_page > 1 else 'pagination_back'
         keyword = InlineKeyboardBuilder()
-        keyword.add(InlineKeyboardButton(text='Назад', callback_data=callback_data))
+        back_emoji = emojize(':last_track_button:') if callback_data == 'pagination_previous' else emojize(
+            ':left_arrow:')
+        keyword.add(InlineKeyboardButton(text=f'{back_emoji} Назад', callback_data=callback_data))
 
         if current_page < count:
-            keyword.add(InlineKeyboardButton(text='Далее', callback_data='pagination_next'))
+            keyword.add(
+                InlineKeyboardButton(text=f'Далее {emojize(":next_track_button:")}', callback_data='pagination_next'))
 
         return keyword.adjust(2).as_markup()
 
