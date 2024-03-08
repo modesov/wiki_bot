@@ -15,3 +15,15 @@ class User(Base):
     tg_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     data: Mapped[str] = mapped_column(JSONB, nullable=False)
+
+
+class Phrase(Base):
+    __tablename__ = 'phrases'
+    phrase: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)
+
+
+class UserPhrase(Base):
+    __tablename__ = 'user_phrases'
+
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    phrase_id: Mapped[int] = mapped_column(BigInteger, nullable=False)

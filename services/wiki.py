@@ -1,3 +1,6 @@
+import logging
+import os
+
 from emoji import emojize
 import uuid
 import wikipediaapi
@@ -7,7 +10,9 @@ from aiogram.client.session import aiohttp
 from config.texts import not_find_text, no_such_find
 from aiogram.types import InlineKeyboardButton, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from aiogram.utils.formatting import Bold, Url
+from aiogram.utils.formatting import Bold
+
+logging.basicConfig(filename=os.path.abspath('logs/wiki_errors.log'), format="%(asctime)s %(levelname)s %(message)s")
 
 
 class Wiki:
@@ -42,7 +47,8 @@ class Wiki:
                 full_text = list(filter(lambda chunk: chunk, full_text))
 
                 count_chunk = len(full_text)
-                summary_text = f'{full_text[0]} \n {full_text[1]}' if count_chunk > 1 and len(full_text[0]) < 10 else full_text[0]
+                summary_text = f'{full_text[0]} \n {full_text[1]}' if count_chunk > 1 and len(full_text[0]) < 10 else \
+                    full_text[0]
                 info = f'{Bold(f"Сводка по запросу «{self.__text_search}»").as_html()}\n<a href="{self.__full_url}">Ссылка на wikipedia</a>  \n\n {summary_text}{"..." if count_chunk > 1 else ""}'
 
                 if count_chunk > 1 and len(full_text[0]) < 10:
@@ -61,7 +67,7 @@ class Wiki:
                     })
                 self.setSections(sections=page.sections)
         except BaseException as inst:
-            print(inst, type(inst))
+            logging.error(inst)
 
     async def getInfo(self):
         return self.__info or (no_such_find if not len(self.__found_options) else not_find_text)

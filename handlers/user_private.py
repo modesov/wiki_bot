@@ -1,3 +1,6 @@
+import logging
+import os
+
 from emoji import emojize
 from aiogram import types, Router, F
 from aiogram.filters import CommandStart, StateFilter, or_f, Command
@@ -9,9 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.texts import greeting_text, go_search_text, not_find_text, no_such_find, help_command_description_text
 from services.wiki import Wiki
-from database.orm_query import orm_add_user
+from database.orm_query import orm_add_user, orm_add_user_phrase
 
 user_private_router = Router()
+
+logging.basicConfig(filename=os.path.abspath('logs/handler_errors.log'), format="%(asctime)s %(levelname)s %(message)s")
 
 
 class ReadAnswer(StatesGroup):
@@ -32,7 +37,8 @@ async def start_cmd(message: types.Message):
 
 @user_private_router.edited_message(F.text)
 @user_private_router.message(F.text)
-async def start_search(message: types.Message, state: FSMContext):
+async def start_search(message: types.Message, state: FSMContext, session: AsyncSession):
+    await orm_add_user_phrase(session=session, phrase=message.text, user_id=message.from_user.id)
     if not StateFilter(None):
         await state.clear()
     msg = await message.answer(go_search_text, reply_markup=ReplyKeyboardRemove())
@@ -102,7 +108,7 @@ async def get_info_by_section(message: types.CallbackQuery, state: FSMContext):
         else:
             await message.message.edit_text(text=text, reply_markup=wiki.getButtons(parent=parent))
     except Exception as error:
-        print(error)
+        logging.error(error)
         await message.message.edit_text(text=no_such_find)
 
 

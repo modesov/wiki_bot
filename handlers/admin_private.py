@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from filters.chat_types import ChatTypeFilter, IsAdmin
 from keyboards.inline import admin_kb
-from aiogram.utils.formatting import Bold, as_list, as_marked_section
+from aiogram.utils.formatting import Bold, as_marked_section
 from database.orm_query import orm_get_users
 
 admin_router = Router()
