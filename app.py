@@ -1,8 +1,6 @@
 import asyncio
-import os
 
-from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
+from aiogram import types
 from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
@@ -12,9 +10,7 @@ from handlers.admin_private import admin_router
 from common.command_list import private
 from database.engine import create_db, drop_db, session_maker
 from middlewares.db import DataBaseSession
-
-bot = Bot(token=os.getenv('TOKEN'), parse_mode=ParseMode.HTML)
-dp = Dispatcher()
+from config.main_config import bot, dp
 
 dp.include_router(admin_router)
 dp.include_router(user_private_router)

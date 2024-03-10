@@ -1,4 +1,9 @@
-def print_sections(sections, level=0):
-    for s in sections:
-        print("%s: %s - %s" % ("*" * (level + 1), s.title, s.text[0:40]))
-        print_sections(s.sections, level + 1)
+import os
+
+from aiogram import Bot
+
+
+async def send_message_admin(*, bot: Bot, message: str):
+    admins = list(map(int, os.getenv('ADMINS').split(',')))
+    for admin_id in admins:
+        await bot.send_message(admin_id, message)

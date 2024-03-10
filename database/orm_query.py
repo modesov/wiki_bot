@@ -19,6 +19,7 @@ async def orm_add_user(*, session: AsyncSession, user: dict):
         )
         session.add(obj)
         await session.commit()
+        return True
     except Exception as error:
         if error.orig.__cause__.__class__ != UniqueViolationError:
             logging.error(error)

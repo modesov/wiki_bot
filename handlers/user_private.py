@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.texts import greeting_text, go_search_text, not_find_text, no_such_find, help_command_description_text
 from services.wiki import Wiki
 from database.orm_query import orm_add_user, orm_add_user_phrase
+from utils import send_message_admin
+from config.main_config import bot
 
 user_private_router = Router()
 
@@ -26,8 +28,14 @@ class ReadAnswer(StatesGroup):
 
 @user_private_router.message(CommandStart())
 async def start_cmd(message: types.Message, session: AsyncSession):
-    await orm_add_user(session=session, user=dict(message.from_user))
+    result = await orm_add_user(session=session, user=dict(message.from_user))
     await message.answer(greeting_text.replace('[name]', message.from_user.first_name))
+    if result:
+        await send_message_admin(bot=bot,
+                                 message=f'Ура! Зарегался новый пользователь! {message.from_user.first_name} {message.from_user.last_name}')
+    else:
+        await send_message_admin(bot=bot,
+                                 message=f'Зашел старый знакомый - {message.from_user.first_name} {message.from_user.last_name}')
 
 
 @user_private_router.message(Command('help'))
